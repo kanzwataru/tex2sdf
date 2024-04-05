@@ -165,7 +165,7 @@ static void draw_rect(struct App *ctx, struct UI_Rect r)
     ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x1, .y = r.y1, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u1, .v = r.u1, .flags = flags_float };
 }
 
-void app_init(struct App *ctx)
+static void app_init(struct App *ctx)
 {
 	glGenVertexArrays(1, &ctx->dummy_vao);
 	glBindVertexArray(ctx->dummy_vao);
@@ -186,7 +186,7 @@ void app_init(struct App *ctx)
     }
 }
 
-void app_update_and_render(struct App *ctx)
+static void app_update_and_render(struct App *ctx)
 {
     ctx->ui_vertex_buffer_top = 0;
 
