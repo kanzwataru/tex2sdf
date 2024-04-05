@@ -175,6 +175,8 @@ void app_init(struct App *ctx)
     {
         ctx->font = &font_droid_sans;
 
+        stbi_set_flip_vertically_on_load(true);
+
         int width, height, channels_in_file;
         uint8_t *buffer = stbi_load_from_memory(ctx->font->png_data, ctx->font->png_data_size, &width, &height, &channels_in_file, 1);
 
