@@ -83,9 +83,10 @@ const char *shader_rect_frag =
 "void main() {\n"
 "   vec4 color = frag_color;\n"
 "\n"
-"   if((frag_flags & 0) != 0) {\n"
+"   if((frag_flags & 1) != 0) {\n"
 "       float sdf = texture(tex_fontsheet, frag_uv).r;\n"
-"       color.r = step(0.0, sdf);\n"
+"       float a = step(0.5, sdf);\n"
+"       color = vec4(a, a, a, 1.0);\n"
 "   }\n"
 "\n"
 "   out_color = color;\n"
@@ -156,13 +157,13 @@ static void draw_rect(struct App *ctx, struct UI_Rect r)
 
     const float flags_float = *(float *)&r.flags;
 
-    ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x2, .y = r.y2, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u2, .v = r.u2, .flags = flags_float };
-    ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x1, .y = r.y2, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u1, .v = r.u2, .flags = flags_float };
-    ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x1, .y = r.y1, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u1, .v = r.u1, .flags = flags_float };
+    ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x2, .y = r.y2, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u2, .v = r.v2, .flags = flags_float };
+    ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x1, .y = r.y2, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u1, .v = r.v2, .flags = flags_float };
+    ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x1, .y = r.y1, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u1, .v = r.v1, .flags = flags_float };
 
-    ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x2, .y = r.y2, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u2, .v = r.u2, .flags = flags_float };
-    ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x2, .y = r.y1, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u2, .v = r.u1, .flags = flags_float };
-    ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x1, .y = r.y1, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u1, .v = r.u1, .flags = flags_float };
+    ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x2, .y = r.y2, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u2, .v = r.v2, .flags = flags_float };
+    ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x2, .y = r.y1, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u2, .v = r.v1, .flags = flags_float };
+    ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x1, .y = r.y1, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u1, .v = r.v1, .flags = flags_float };
 }
 
 static void app_init(struct App *ctx)
@@ -175,13 +176,17 @@ static void app_init(struct App *ctx)
     {
         ctx->font = &font_droid_sans;
 
-        stbi_set_flip_vertically_on_load(true);
+        //stbi_set_flip_vertically_on_load(true);
 
         int width, height, channels_in_file;
         uint8_t *buffer = stbi_load_from_memory(ctx->font->png_data, ctx->font->png_data_size, &width, &height, &channels_in_file, 1);
 
         glGenTextures(1, &ctx->texture_font);
         glBindTexture(GL_TEXTURE_2D, ctx->texture_font);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, buffer);
     }
 }
@@ -199,12 +204,12 @@ static void app_update_and_render(struct App *ctx)
 
     draw_rect(ctx, (struct UI_Rect){
         .x1 = 128, .y1 = 128,
-        .x2 = 196, .y2 = 196,
+        .x2 = 128 + 32, .y2 = 128 + 32,
 
-        .u1 = (float)ctx->font->characters[1].x / ctx->font->width,
-        .v1 = (float)ctx->font->characters[1].y / ctx->font->width,
-        .u2 = (float)(ctx->font->characters[1].x + ctx->font->characters[1].width) / ctx->font->width,
-        .v2 = (float)(ctx->font->characters[1].y + ctx->font->characters[1].height) / ctx->font->height,
+        .u1 = (float)ctx->font->characters[3].x / ctx->font->width,
+        .v1 = (float)ctx->font->characters[3].y / ctx->font->height,
+        .u2 = (float)(ctx->font->characters[3].x + ctx->font->characters[3].width) / ctx->font->width,
+        .v2 = (float)(ctx->font->characters[3].y + ctx->font->characters[3].height) / ctx->font->height,
 
         .r = 0.0f, .g = 1.0f, .b = 1.0f, .a = 1.0f,
 
