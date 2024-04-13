@@ -85,8 +85,7 @@ const char *shader_rect_frag =
 "\n"
 "   if((frag_flags & 1) != 0) {\n"
 "       float sdf = texture(tex_fontsheet, frag_uv).r;\n"
-"       float a = step(0.5, sdf);\n"
-"       color = vec4(a, a, a, 1.0);\n"
+"       color.a *= step(0.5, sdf);\n"
 "   }\n"
 "\n"
 "   out_color = color;\n"
@@ -211,7 +210,7 @@ static void app_update_and_render(struct App *ctx)
         .u2 = (float)(ctx->font->characters[3].x + ctx->font->characters[3].width) / ctx->font->width,
         .v2 = (float)(ctx->font->characters[3].y + ctx->font->characters[3].height) / ctx->font->height,
 
-        .r = 0.0f, .g = 1.0f, .b = 1.0f, .a = 1.0f,
+        .r = 1.0f, .g = 0.0f, .b = 1.0f, .a = 1.0f,
 
         .flags = 1
     });
@@ -233,6 +232,9 @@ static void app_update_and_render(struct App *ctx)
     glVertexAttribPointer(2, 4, GL_FLOAT, false, sizeof(struct GPU_Rect_Vertex), (void *)(sizeof(float) * 5));
 
     glBindTexture(GL_TEXTURE_2D, ctx->texture_font);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glDrawArrays(GL_TRIANGLES, 0, ctx->ui_vertex_buffer_top);
 
