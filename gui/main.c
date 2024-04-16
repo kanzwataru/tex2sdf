@@ -10,6 +10,22 @@
 
 #include "font/droid_sans.h"
 
+struct Rect
+{
+    float x1, y1;
+    float x2, y2;
+};
+
+struct Color
+{
+    float r, g, b, a;
+};
+
+enum
+{
+    UI_RECT_FLAG_IS_TEXT = 1 << 0
+};
+
 struct UI_Rect
 {
     float x1, y1;
@@ -165,6 +181,47 @@ static void draw_rect(struct App *ctx, struct UI_Rect r)
     ctx->ui_vertex_buffer[ctx->ui_vertex_buffer_top++] = (struct GPU_Rect_Vertex){ .x = r.x1, .y = r.y1, .r = r.r, .g = r.g, .b = r.b, .a = r.a, .u = r.u1, .v = r.v1, .flags = flags_float };
 }
 
+static void draw_text(struct App *ctx, const char *text, struct Rect bounds, struct Color color, float text_size)
+{
+    float x = bounds.x1;
+    float y = bounds.y1;
+
+    for(const char *c = text; *c; ++c)
+    {
+        if(*c == ' ')
+        {
+            x += text_size;
+            continue;
+        }
+        else if(*c == '\n')
+        {
+            y += text_size;
+            continue;
+        }
+
+        const int char_index = *c >= 33 && *c <= 126 ? *c - 32 : '?' - 32;
+        const struct Character *font_char = &ctx->font->characters[char_index];
+
+        draw_rect(ctx, (struct UI_Rect){
+            .x1 = x, .y1 = y,
+            .x2 = x + 32, .y2 = y + 32,
+
+            .u1 = (float)font_char->x / ctx->font->width,
+            .v1 = (float)font_char->y / ctx->font->height,
+            .u2 = (float)(font_char->x + font_char->width) / ctx->font->width,
+            .v2 = (float)(font_char->y + font_char->height) / ctx->font->height,
+
+            .r = color.r, .g = color.g, .b = color.b, .a = color.a,
+
+            .flags = UI_RECT_FLAG_IS_TEXT
+        });
+
+        x += text_size;
+
+        // TODO: Line wrapping
+    }
+}
+
 static void app_init(struct App *ctx)
 {
 	glGenVertexArrays(1, &ctx->dummy_vao);
@@ -201,19 +258,7 @@ static void app_update_and_render(struct App *ctx)
         .r = 0.0f, .g = 1.0f, .b = 1.0f, .a = 1.0f
     });
 
-    draw_rect(ctx, (struct UI_Rect){
-        .x1 = 128, .y1 = 128,
-        .x2 = 128 + 32, .y2 = 128 + 32,
-
-        .u1 = (float)ctx->font->characters[3].x / ctx->font->width,
-        .v1 = (float)ctx->font->characters[3].y / ctx->font->height,
-        .u2 = (float)(ctx->font->characters[3].x + ctx->font->characters[3].width) / ctx->font->width,
-        .v2 = (float)(ctx->font->characters[3].y + ctx->font->characters[3].height) / ctx->font->height,
-
-        .r = 1.0f, .g = 0.0f, .b = 1.0f, .a = 1.0f,
-
-        .flags = 1
-    });
+    draw_text(ctx, "Hello, world!", (struct Rect){ 128.0f, 128.0f }, (struct Color){ 1.0f, 1.0f, 0.0f, 1.0f }, 32.0f);
 
     glClearColor(0.7f, 0.9f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
