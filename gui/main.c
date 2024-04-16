@@ -186,25 +186,30 @@ static void draw_text(struct App *ctx, const char *text, struct Rect bounds, str
     float x = bounds.x1;
     float y = bounds.y1;
 
+    const float size_mult = text_size / (float)ctx->font->size;
+
     for(const char *c = text; *c; ++c)
     {
         if(*c == ' ')
         {
-            x += text_size;
+            x += ctx->font->characters[0].width * size_mult;
             continue;
         }
         else if(*c == '\n')
         {
-            y += text_size;
+            y += ctx->font->characters[0].height * size_mult;
             continue;
         }
 
-        const int char_index = *c >= 33 && *c <= 126 ? *c - 32 : '?' - 32;
+        const int char_index = *c > 32 && *c < 127 ? *c - 32 : '?' - 32;
         const struct Character *font_char = &ctx->font->characters[char_index];
 
+        const float x1 = x - font_char->origin_x * size_mult;
+        const float y1 = y - font_char->origin_y * size_mult;
+
         draw_rect(ctx, (struct UI_Rect){
-            .x1 = x, .y1 = y,
-            .x2 = x + 32, .y2 = y + 32,
+            .x1 = x1, .y1 = y1,
+            .x2 = x1 + font_char->width * size_mult, .y2 = y1 + font_char->height * size_mult,
 
             .u1 = (float)font_char->x / ctx->font->width,
             .v1 = (float)font_char->y / ctx->font->height,
@@ -216,7 +221,7 @@ static void draw_text(struct App *ctx, const char *text, struct Rect bounds, str
             .flags = UI_RECT_FLAG_IS_TEXT
         });
 
-        x += text_size;
+        x += font_char->advance * size_mult;
 
         // TODO: Line wrapping
     }
@@ -251,7 +256,7 @@ static void app_update_and_render(struct App *ctx)
 {
     ctx->ui_vertex_buffer_top = 0;
 
-    //draw_quad(ctx, 32, 32, 64, 64, 1.0f, 0.5f, 0.25f);
+    // * Update
     draw_rect(ctx, (struct UI_Rect){
         .x1 = 32, .y1 = 32,
         .x2 = 64, .y2 = 64,
@@ -259,7 +264,10 @@ static void app_update_and_render(struct App *ctx)
     });
 
     draw_text(ctx, "Hello, world!", (struct Rect){ 128.0f, 128.0f }, (struct Color){ 1.0f, 1.0f, 0.0f, 1.0f }, 32.0f);
+    draw_text(ctx, "Hello, world!", (struct Rect){ 192.0f, 256.0f }, (struct Color){ 0.0f, 1.0f, 1.0f, 1.0f }, 64.0f);
+    draw_text(ctx, "Hello, world!", (struct Rect){ 64.0f, 350.0f }, (struct Color){ 1.0f, 0.0f, 0.0f, 1.0f }, 16.0f);
 
+    // * Render
     glClearColor(0.7f, 0.9f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
