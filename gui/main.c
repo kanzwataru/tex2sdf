@@ -46,8 +46,44 @@ struct GPU_Rect_Vertex
     float r, g, b, a;
 };
 
+enum
+{
+    UI_WIDGET_FLAG_VISIBLE = 1 << 0,
+    UI_WIDGET_FLAG_CLICKABLE = 1 << 1
+};
+
+struct UI_Widget
+{
+    struct UI_Widget *next;
+    struct UI_Widget *prev;
+    struct UI_Widget *parent;
+    struct UI_Widget *child;
+
+    struct Rect rect;
+    struct Color color;
+    const char *text;
+
+    uint32_t flags;
+    uint64_t id;
+};
+
+struct UI
+{
+    struct UI_Widget widget_pool[1024];
+    uint32_t widget_pool_top;
+
+    struct UI_Widget *widget_first;
+    struct UI_Widget *widget_last;
+
+    float cursor_x;
+    float cursor_y;
+
+    uint64_t hovering_widget_id;
+};
+
 struct App
 {
+    // -- TODO: Split this stuff into a Draw context struct
     int window_width;
     int window_height;
 
@@ -61,6 +97,9 @@ struct App
 
     const struct Font *font;
     GLuint texture_font;
+    // --
+
+    struct UI ui;
 };
 
 #define countof(x) (sizeof(x) / sizeof(x[0]))
@@ -227,6 +266,78 @@ static void draw_text(struct App *ctx, const char *text, struct Rect bounds, str
     }
 }
 
+static void ui_begin(struct UI *ui)
+{
+    // Re-initialize layout
+    ui->cursor_x = 128.0f;
+    ui->cursor_y = 32.0f;
+
+    // Process interaction
+    // TODO: Implement...
+
+    // Clear widget list
+    ui->widget_pool_top = 1;
+    ui->widget_pool[0] = (struct UI_Widget){};
+    ui->widget_first = &ui->widget_pool[0];
+    ui->widget_last = &ui->widget_pool[0];
+}
+
+static void ui_end(struct UI *ui, struct App *ctx)
+{
+    for(struct UI_Widget *w = ui->widget_first; w; w = w->next) {
+        if(!(w->flags & UI_WIDGET_FLAG_VISIBLE)) {
+            continue;
+        }
+
+        if(w->text) {
+            draw_text(ctx, w->text, w->rect, w->color, 32.0f);
+        }
+        else {
+            draw_rect(ctx, (struct UI_Rect){
+                .x1 = w->rect.x1, .y1 = w->rect.y1,
+                .x2 = w->rect.x2, .y2 = w->rect.y2,
+
+                .r = w->color.r, .g = w->color.g, .b = w->color.b, .a = w->color.a,
+            });
+        }
+    }
+}
+
+static inline void ui_push_widget(struct UI *ui, struct UI_Widget *in_widget)
+{
+    if(ui->widget_pool_top + 1 < countof(ui->widget_pool)) {
+        struct UI_Widget *widget = &ui->widget_pool[ui->widget_pool_top++];
+        *widget = *in_widget;
+
+        if(!widget->parent) {
+            ui->widget_last->next = widget;
+            widget->prev = ui->widget_last;
+            ui->widget_last = widget;
+        }
+    }
+}
+
+static bool ui_button(struct UI *ui, const char *label)
+{
+    ui_push_widget(ui, &(struct UI_Widget){
+        .rect = { ui->cursor_x, ui->cursor_y, ui->cursor_x + 128.0f, ui->cursor_y + 32.0f },
+        .color = { 0.5f, 0.5f, 0.5f, 1.0f },
+        .flags = UI_WIDGET_FLAG_VISIBLE | UI_WIDGET_FLAG_CLICKABLE,
+        .id = (uint64_t)label
+    });
+
+    ui_push_widget(ui, &(struct UI_Widget){
+        .rect = { ui->cursor_x + 16.0f, ui->cursor_y + 16.0f, ui->cursor_x + 128.0f, ui->cursor_y + 32.0f },
+        .color = { 0.01f, 0.01f, 0.01f, 1.0f },
+        .text = label,
+        .flags = UI_WIDGET_FLAG_VISIBLE
+        //.parent =  // TODO: Add hierarchy
+        //.id = (uint64_t)label // TODO: How should child widgets get IDs???
+    });
+
+    return false; // TODO: Interaction
+}
+
 static void app_init(struct App *ctx)
 {
 	glGenVertexArrays(1, &ctx->dummy_vao);
@@ -257,6 +368,12 @@ static void app_update_and_render(struct App *ctx)
     ctx->ui_vertex_buffer_top = 0;
 
     // * Update
+    ui_begin(&ctx->ui);
+
+    ui_button(&ctx->ui, "Button!");
+
+    ui_end(&ctx->ui, ctx);
+
     draw_rect(ctx, (struct UI_Rect){
         .x1 = 32, .y1 = 32,
         .x2 = 64, .y2 = 64,
