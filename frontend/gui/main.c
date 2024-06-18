@@ -3,10 +3,10 @@
 #include <SDL2/SDL.h>
 
 #define GLAD_GLES2_IMPLEMENTATION
-#include "extern/gles2.h"
+#include "../extern/gles2.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "extern/stb_image.h"
+#include "../extern/stb_image.h"
 
 #include "font/droid_sans.h"
 
