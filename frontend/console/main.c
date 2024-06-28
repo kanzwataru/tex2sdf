@@ -32,10 +32,10 @@ int main(int argc, char **argv)
     }
 
     // 3. Convert to SDF
-    const struct Tex2SDF_Image sdf = tex2sdf_convert((struct Tex2SDF_Image){input_data, w, h, channels});
+    const struct T2S_Image sdf = t2s_convert((struct T2S_Image){input_data, w, h, channels});
 
     if(sdf.error) {
-    	fprintf(stderr, "Could not convert SDF: %s\n", tex2sdf_get_error_string(sdf.error));
+    	fprintf(stderr, "Could not convert SDF: %s\n", t2s_get_error_string(sdf.error));
     	return 1;
     }
 
