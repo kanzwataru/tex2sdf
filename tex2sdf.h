@@ -92,8 +92,8 @@ struct T2S_Image t2s_convert(struct T2S_Image input)
 	struct T2S_ImageChannel scratch_channel = {
 		.width = output.width,
 		.height = output.height,
-		.distance_buffer = malloc(output.width * output.height * sizeof(float)),
-		.edge_buffer = malloc(output.width * output.height * sizeof(float))
+		.distance_buffer = calloc(output.width * output.height, sizeof(float)),
+		.edge_buffer = calloc(output.width * output.height, sizeof(float))
 	};
 
 	if(!scratch_channel.distance_buffer || !scratch_channel.edge_buffer) {
@@ -258,7 +258,7 @@ void _t2s_solve_eikonal(const struct T2S_ImageChannel *channel, int x, int y)
 
     //find the smallest of the 2 vertical neighbours
     float verticalmin = FLT_MAX;
-    if (y > 0) verticalmin = t2s_min(verticalmin, channel->distance_buffer[channel_at(channel, x, y - 1)]);
+    if (y > 0) verticalmin = t2s_min(verticalmin, sign * channel->distance_buffer[channel_at(channel, x, y - 1)]);
     if (y < channel->height - 1) verticalmin = t2s_min(verticalmin, sign * channel->distance_buffer[channel_at(channel, x, y + 1)]);
 
 	//solve eikonal equation in 2D
