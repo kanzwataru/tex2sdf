@@ -52,12 +52,23 @@ enum
     UI_WIDGET_FLAG_CLICKABLE = 1 << 1
 };
 
+struct UI_Widget_Cached
+{
+    uint32_t id;
+
+    uint32_t hovering : 1;
+    uint32_t down : 1;
+    uint32_t clicked : 1;
+};
+
 struct UI_Widget
 {
     struct UI_Widget *next;
     struct UI_Widget *prev;
     struct UI_Widget *parent;
     struct UI_Widget *child;
+
+    struct UI_Widget_Cached *cached;
 
     struct Rect rect;
     struct Color color;
@@ -92,6 +103,9 @@ struct UI
 {
     struct UI_Widget widget_pool[1024];
     uint32_t widget_pool_top;
+
+    struct UI_Widget_Cached cached_widget_pool[2048];
+    uint32_t cached_widget_pool_top;
 
     struct UI_Widget *widget_first;
     struct UI_Widget *widget_last;
@@ -226,6 +240,74 @@ static void pixel_to_ndc(struct App *ctx, float *x, float *y)
     *y = (1.0f - *y / ctx->window_height) * 2.0f - 1.0f;
 }
 
+static float lerp(float a, float b, float t)
+{
+    return a + t * (b - a);
+}
+
+static struct Color color_mul(struct Color a, struct Color b)
+{
+    return (struct Color){ 
+        a.r * b.r, a.g * b.g, a.b * b.b, a.a * b.a
+    };
+}
+
+static struct Color color_lerp(struct Color a, struct Color b, float t)
+{
+    return (struct Color){
+        lerp(a.r, b.r, t),
+        lerp(a.g, b.g, t),
+        lerp(a.b, b.b, t),
+        lerp(a.a, b.a, t)
+    };
+}
+
+static struct UI_Widget *get_widget_by_id(struct UI *ui, uint64_t widget_id)
+{
+    // TODO PERF: Have a hashmap for faster lookup
+    for(int i = 0; i < ui->widget_pool_top; ++i) {
+        if(ui->widget_pool[i].id == widget_id) {
+            return &ui->widget_pool[i];
+        }
+    }
+
+    return NULL;
+}
+
+static struct UI_Widget_Cached *get_or_create_cached_widget_by_id(struct UI *ui, uint64_t widget_id)
+{
+    // TODO PERF: Have a hashmap for faster lookup
+    
+    // Return the cached widget, if we already have it
+    for(int i = 0; i < ui->cached_widget_pool_top; ++i) {
+        if(ui->cached_widget_pool[i].id == widget_id) {
+            return &ui->cached_widget_pool[i];
+        }
+    }
+
+    // Create a new cached widget
+    if(ui->cached_widget_pool_top + 1 > countof(ui->cached_widget_pool)) {
+        panic("Ran out of cached widget pool memory.\n");
+    }
+
+    struct UI_Widget_Cached *cached_widget = &ui->cached_widget_pool[ui->cached_widget_pool_top++];
+    *cached_widget = (struct UI_Widget_Cached){
+        .id = widget_id
+    };
+
+    printf("New widget [%d]\n", widget_id);
+
+    return cached_widget;
+}
+
+static inline bool ui_is_mouse_in_rect(const struct UI_Input_State *input, const struct Rect *rect)
+{
+    return input->mouse_x > rect->x1 &&
+           input->mouse_x < rect->x2 &&
+           input->mouse_y > rect->y1 &&
+           input->mouse_y < rect->y2;
+}
+
 static void draw_rect(struct App *ctx, struct UI_Rect r)
 {
     if(ctx->ui_vertex_buffer_top + 6 > countof(ctx->ui_vertex_buffer)) {
@@ -298,8 +380,45 @@ static void ui_begin(struct UI *ui)
     ui->cursor_x = 128.0f;
     ui->cursor_y = 32.0f;
 
-    // Process interaction
-    // TODO: Implement...
+    // Update cached widgets
+    for(int i = 0; i < ui->cached_widget_pool_top; ++i) {
+        struct UI_Widget_Cached *cached_widget = &ui->cached_widget_pool[i];
+        struct UI_Widget *widget = get_widget_by_id(ui, cached_widget->id);
+
+        // Check if we got clicked
+        if((widget->flags & UI_WIDGET_FLAG_CLICKABLE) &&
+           (widget->flags & UI_WIDGET_FLAG_VISIBLE))
+        {
+            cached_widget->clicked = false;
+            cached_widget->down = false;
+
+            cached_widget->hovering = ui_is_mouse_in_rect(&ui->input, &widget->rect);
+
+            if(cached_widget->hovering) {
+                ui->hot_widget_id = widget->id;
+
+                if(!ui->input.buttons[UI_MOUSE_BUTTON_LEFT] && ui->active_widget_id == widget->id) {
+                    ui->active_widget_id = 0;
+                    cached_widget->clicked = true;
+                }
+                else if(ui->input.buttons[UI_MOUSE_BUTTON_LEFT]) {
+                    if(ui->active_widget_id == widget->id) {
+                        cached_widget->down = true;
+                    }
+
+                    ui->active_widget_id = widget->id;
+                }
+            }
+            else {
+                if(ui->hot_widget_id == widget->id) {
+                    ui->hot_widget_id = 0;
+                }
+                if(ui->active_widget_id == widget->id) {
+                    ui->active_widget_id = 0;
+                }
+            }
+        }
+    }
 
     // Clear widget list
     ui->widget_pool_top = 1;
@@ -310,6 +429,24 @@ static void ui_begin(struct UI *ui)
 
 static void ui_end(struct UI *ui, struct App *ctx)
 {
+    // Prune unused cached widgets
+    for(int i = 0; i < ui->cached_widget_pool_top; ) {
+        struct UI_Widget_Cached *cached_widget = &ui->cached_widget_pool[i];
+
+        struct UI_Widget *widget = get_widget_by_id(ui, cached_widget->id);
+        if(widget) {
+            ++i;
+            continue;
+        }
+        else {
+            printf("Pruning widget [%d]\n", cached_widget->id);
+
+            ui->cached_widget_pool[i] = ui->cached_widget_pool[--ui->cached_widget_pool_top];
+
+            continue;
+        }
+    }
+
     // Draw UI
     for(struct UI_Widget *w = ui->widget_first; w; w = w->next) {
         if(!(w->flags & UI_WIDGET_FLAG_VISIBLE)) {
@@ -320,11 +457,22 @@ static void ui_end(struct UI *ui, struct App *ctx)
             draw_text(ctx, w->text, w->rect, w->color, w->text_size ? w->text_size : 32.0f);
         }
         else {
+            // TODO: Have some real styling
+            const struct Color base_color = w->color;
+
+            struct Color color = base_color;
+            if(w->cached->down) {
+                color = color_mul(color, (struct Color){1.1f, 0.65f, 0.75f, 1.0f});
+            }
+            if(w->cached->hovering) {
+                color = color_mul(color, (struct Color){1.1f, 1.1f, 1.1f, 1.0f});
+            }
+
             draw_rect(ctx, (struct UI_Rect){
                 .x1 = w->rect.x1, .y1 = w->rect.y1,
                 .x2 = w->rect.x2, .y2 = w->rect.y2,
 
-                .r = w->color.r, .g = w->color.g, .b = w->color.b, .a = w->color.a,
+                .r = color.r, .g = color.g, .b = color.b, .a = color.a,
             });
         }
     }
@@ -332,53 +480,22 @@ static void ui_end(struct UI *ui, struct App *ctx)
 
 static inline struct UI_Widget *ui_push_widget(struct UI *ui, struct UI_Widget *in_widget)
 {
-    if(ui->widget_pool_top + 1 < countof(ui->widget_pool)) {
-        struct UI_Widget *widget = &ui->widget_pool[ui->widget_pool_top++];
-        *widget = *in_widget;
-
-        if(!widget->parent) {
-            ui->widget_last->next = widget;
-            widget->prev = ui->widget_last;
-            ui->widget_last = widget;
-        }
-
-        return widget;
+    if(ui->widget_pool_top + 1 > countof(ui->widget_pool)) {
+        panic("Ran out of widget pool memory.\n");
     }
 
-    return NULL;
-}
+    struct UI_Widget *widget = &ui->widget_pool[ui->widget_pool_top++];
+    *widget = *in_widget;
 
-static inline bool ui_is_mouse_in_rect(const struct UI_Input_State *input, const struct Rect *rect)
-{
-    return input->mouse_x > rect->x1 &&
-           input->mouse_x < rect->x2 &&
-           input->mouse_y > rect->y1 &&
-           input->mouse_y < rect->y2;
-}
-
-static inline bool ui_get_if_widget_clicked(struct UI *ui, const struct UI_Widget *widget)
-{
-    bool clicked = false;
-
-    if((widget->flags & UI_WIDGET_FLAG_CLICKABLE) &&
-       (widget->flags & UI_WIDGET_FLAG_VISIBLE))
-    {
-        const bool hovering = ui_is_mouse_in_rect(&ui->input, &widget->rect);
-
-        if(hovering) {
-            ui->hot_widget_id = widget->id;
-
-            if(!ui->input.buttons[UI_MOUSE_BUTTON_LEFT] && ui->active_widget_id == widget->id) {
-                ui->active_widget_id = 0;
-                clicked = true;
-            }
-            else if(ui->input.buttons[UI_MOUSE_BUTTON_LEFT]) {
-                ui->active_widget_id = widget->id;
-            }
-        }
+    if(!widget->parent) {
+        ui->widget_last->next = widget;
+        widget->prev = ui->widget_last;
+        ui->widget_last = widget;
     }
 
-    return clicked;
+    widget->cached = get_or_create_cached_widget_by_id(ui, widget->id);
+
+    return widget;
 }
 
 static bool ui_button(struct UI *ui, const char *label)
@@ -395,12 +512,15 @@ static bool ui_button(struct UI *ui, const char *label)
         .color = { 0.01f, 0.01f, 0.01f, 1.0f },
         .text = label,
         .text_size = 24.0f,
-        .flags = UI_WIDGET_FLAG_VISIBLE
+        .flags = UI_WIDGET_FLAG_VISIBLE,
         //.parent =  // TODO: Add hierarchy
         //.id = (uint64_t)label // TODO: How should child widgets get IDs???
+        .id = (uint64_t)label + 1
     });
 
-    return ui_get_if_widget_clicked(ui, button_widget);
+    ui->cursor_y += 48.0f;
+
+    return button_widget->cached->clicked;
 }
 
 static void app_init(struct App *ctx)
@@ -435,8 +555,16 @@ static void app_update_and_render(struct App *ctx)
     // * Update
     ui_begin(&ctx->ui);
 
-    if(ui_button(&ctx->ui, "Button!")) {
-        printf("cowabunga!\n");
+    static bool shown = false;
+
+    if(ui_button(&ctx->ui, "Show/Hide")) {
+        shown = !shown;
+    }
+
+    if(shown) {
+        if(ui_button(&ctx->ui, "Button!")) {
+            printf("cowabunga!\n");
+        }
     }
 
     ui_end(&ctx->ui, ctx);
