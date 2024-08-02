@@ -248,6 +248,11 @@ static float lerp(float a, float b, float t)
     return a + t * (b - a);
 }
 
+static float ease_in_out_quad(float x)
+{
+    return x < 0.5f ? 2.0f * x * x : 1.0f - powf(-2.0f * x + 2.0f, 2.0f) / 2.0f;
+}
+
 static float saturate(float v)
 {
     return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
@@ -429,17 +434,17 @@ static void ui_begin(struct UI *ui)
         {
             // TODO: Delta-time
             if(cached_widget->hovering) {
-                cached_widget->anim_hovering = saturate(cached_widget->anim_hovering + 0.1f);
+                cached_widget->anim_hovering = saturate(cached_widget->anim_hovering + 0.4f);
             }
             else {
-                cached_widget->anim_hovering = saturate(cached_widget->anim_hovering - 0.3f);
+                cached_widget->anim_hovering = saturate(cached_widget->anim_hovering - 0.06f);
             }
 
             if(cached_widget->down) {
-                cached_widget->anim_down = saturate(cached_widget->anim_down + 0.7f);
+                cached_widget->anim_down = saturate(cached_widget->anim_down + 0.3f);
             }
             else {
-                cached_widget->anim_down = saturate(cached_widget->anim_down - 0.2f);
+                cached_widget->anim_down = saturate(cached_widget->anim_down - 0.08f);
             }
         }
     }
@@ -485,8 +490,8 @@ static void ui_end(struct UI *ui, struct App *ctx)
             const struct Color hovering_color = color_mul(base_color, (struct Color){1.1f, 1.1f, 1.1f, 1.0f});
 
             struct Color color = base_color;
-            color = color_lerp(color, hovering_color, w->cached->anim_hovering);
-            color = color_lerp(color, down_color, w->cached->anim_down);
+            color = color_lerp(color, hovering_color, ease_in_out_quad(w->cached->anim_hovering));
+            color = color_lerp(color, down_color, ease_in_out_quad(w->cached->anim_down));
 
             draw_rect(ctx, (struct UI_Rect){
                 .x1 = w->rect.x1, .y1 = w->rect.y1,
