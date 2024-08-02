@@ -59,6 +59,9 @@ struct UI_Widget_Cached
     uint32_t hovering : 1;
     uint32_t down : 1;
     uint32_t clicked : 1;
+
+    float anim_hovering;
+    float anim_down;
 };
 
 struct UI_Widget
@@ -245,6 +248,11 @@ static float lerp(float a, float b, float t)
     return a + t * (b - a);
 }
 
+static float saturate(float v)
+{
+    return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
+}
+
 static struct Color color_mul(struct Color a, struct Color b)
 {
     return (struct Color){ 
@@ -416,6 +424,24 @@ static void ui_begin(struct UI *ui)
                 }
             }
         }
+
+        // Update animations
+        {
+            // TODO: Delta-time
+            if(cached_widget->hovering) {
+                cached_widget->anim_hovering = saturate(cached_widget->anim_hovering + 0.1f);
+            }
+            else {
+                cached_widget->anim_hovering = saturate(cached_widget->anim_hovering - 0.3f);
+            }
+
+            if(cached_widget->down) {
+                cached_widget->anim_down = saturate(cached_widget->anim_down + 0.7f);
+            }
+            else {
+                cached_widget->anim_down = saturate(cached_widget->anim_down - 0.2f);
+            }
+        }
     }
 
     // Clear widget list
@@ -455,14 +481,12 @@ static void ui_end(struct UI *ui, struct App *ctx)
         else {
             // TODO: Have some real styling
             const struct Color base_color = w->color;
+            const struct Color down_color = color_mul(base_color, (struct Color){1.1f, 0.65f, 0.75f, 1.0f});
+            const struct Color hovering_color = color_mul(base_color, (struct Color){1.1f, 1.1f, 1.1f, 1.0f});
 
             struct Color color = base_color;
-            if(w->cached->down) {
-                color = color_mul(color, (struct Color){1.1f, 0.65f, 0.75f, 1.0f});
-            }
-            if(w->cached->hovering) {
-                color = color_mul(color, (struct Color){1.1f, 1.1f, 1.1f, 1.0f});
-            }
+            color = color_lerp(color, hovering_color, w->cached->anim_hovering);
+            color = color_lerp(color, down_color, w->cached->anim_down);
 
             draw_rect(ctx, (struct UI_Rect){
                 .x1 = w->rect.x1, .y1 = w->rect.y1,
