@@ -295,8 +295,6 @@ static struct UI_Widget_Cached *get_or_create_cached_widget_by_id(struct UI *ui,
         .id = widget_id
     };
 
-    printf("New widget [%d]\n", widget_id);
-
     return cached_widget;
 }
 
@@ -439,8 +437,6 @@ static void ui_end(struct UI *ui, struct App *ctx)
             continue;
         }
         else {
-            printf("Pruning widget [%d]\n", cached_widget->id);
-
             ui->cached_widget_pool[i] = ui->cached_widget_pool[--ui->cached_widget_pool_top];
 
             continue;
