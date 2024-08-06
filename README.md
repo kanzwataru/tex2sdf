@@ -1,6 +1,6 @@
 # Convert mask textures to SDF textures
 
-![Cat SDF](test_assets/cathires_sdf.tga)
+![Cat SDF](test_assets/cathires_sdf.png)
 
 Welcome! `tex2sdf` is a tool to make SDF textures out of solid shape textures.
 The license is MIT, so feel free to use it!
@@ -25,7 +25,7 @@ Check out his [article series about SDFs](https://shaderfun.com/2018/03/23/signe
 ## Examples
 
 ![Cat Mask](test_assets/cathires.jpg)
-![Cat SDF](test_assets/cathires_sdf.tga)
+![Cat SDF](test_assets/cathires_sdf.png)
 
 ## FAQ
 
