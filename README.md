@@ -8,13 +8,13 @@ The license is MIT, so feel free to use it!
 Download a working version from the builds page.
 
 This repository contains the following:
-* tex2sdf.h
+* **tex2sdf.h**
     * This is an [stb-style](https://github.com/nothings/stb) single-header C library that contains all the actual pixel logic.
     * There are no dependencies, just drop it in and go.
-* tex2sdf.exe (`frontend/console/main.c`)
+* **tex2sdf.exe** (`frontend/console/main.c`)
     * This is a console program that uses the `tex2sdf.h` library to load a texture, convert it, and save it out.
     * All functionality of the library is exposed, as command arguments
-* tex2sdf_gui.exe (`frontend/gui/main.c`)
+* **tex2sdf_gui.exe** (`frontend/gui/main.c`)
     * Coming Soon™
     * This will eventually be a graphical application, currently it is WIP (in the `uidev` branch).
 
