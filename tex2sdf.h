@@ -15,14 +15,21 @@ struct T2S_Image
 	int error;
 };
 
-enum {
+struct T2S_Options
+{
+	float sdf_range;
+};
+
+enum
+{
 	TEX2SDF_ERR_NONE,
 	TEX2SDF_ERR_ALLOC,
 
 	TEX2SDF_ERR_COUNT
 };
 
-struct T2S_Image t2s_convert(struct T2S_Image input);
+struct T2S_Options t2s_get_default_options(void);
+struct T2S_Image t2s_convert(struct T2S_Image input, struct T2S_Options options);
 const char *t2s_get_error_string(int error);
 
 #endif // TEX2SDF_H
@@ -34,8 +41,8 @@ const char *t2s_get_error_string(int error);
  */
 #ifdef TEX2SDF_IMPLEMENTATION
 
-#include "math.h"  // for sqrtf, fabsf
-#include "float.h" // for FLT_MAX
+#include <math.h>  // for sqrtf, fabsf
+#include <float.h> // for FLT_MAX
 
 struct T2S_ImageChannel
 {
@@ -75,7 +82,14 @@ static float t2s_min(float a, float b)
 //	return a > b ? a : b;
 //}
 
-struct T2S_Image t2s_convert(struct T2S_Image input)
+struct T2S_Options t2s_get_default_options(void)
+{
+	return (struct T2S_Options){
+		.sdf_range = 32.0f
+	};
+}
+
+struct T2S_Image t2s_convert(struct T2S_Image input, struct T2S_Options options)
 {
 	// 1. Allocate memory for output
 	struct T2S_Image output = input;
@@ -115,11 +129,8 @@ struct T2S_Image t2s_convert(struct T2S_Image input)
 		// - Write into output image
 		for(int y = 0; y < output.height; ++y) {
 			for(int x = 0; x < output.width; ++x) {
-				//const float sdf_range = 128.0f; // TODO: Don't hard-code
-				const float sdf_range = 32.0f; // TODO: Don't hard-code
-
 				float value = scratch_channel.distance_buffer[y * output.width + x];
-				value /= sdf_range;
+				value /= options.sdf_range;
 				value = value < -1.0f ? -1.0f : value;
 				value = value >  1.0f ?  1.0f : value;
 
