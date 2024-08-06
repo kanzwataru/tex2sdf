@@ -5,6 +5,8 @@
 #ifndef TEX2SDF_H
 #define TEX2SDF_H
 
+#include <stddef.h> // For size_t
+
 struct T2S_Image
 {
 	unsigned char *data;
@@ -15,6 +17,19 @@ struct T2S_Image
 	int error;
 };
 
+struct T2S_MemoryRegion
+{
+	void *memory;
+	size_t top;
+	size_t capacity;
+};
+
+struct T2S_Allocation
+{
+	struct T2S_MemoryRegion temporary_memory;
+	struct T2S_MemoryRegion return_data_memory;
+};
+
 struct T2S_Options
 {
 	float sdf_range;
@@ -23,13 +38,15 @@ struct T2S_Options
 enum
 {
 	TEX2SDF_ERR_NONE,
-	TEX2SDF_ERR_ALLOC,
+	TEX2SDF_ERR_ALLOC_FAILURE,
+	TEX2SDF_ERR_PREALLOCATED_MEMORY_INCORRECT,
 
 	TEX2SDF_ERR_COUNT
 };
 
 struct T2S_Options t2s_get_default_options(void);
 struct T2S_Image t2s_convert(struct T2S_Image input, struct T2S_Options options);
+struct T2S_Image t2s_convert_noalloc(struct T2S_Image input, struct T2S_Options options, struct T2S_Allocation *alloc);
 const char *t2s_get_error_string(int error);
 
 #endif // TEX2SDF_H
@@ -82,6 +99,18 @@ static float t2s_min(float a, float b)
 //	return a > b ? a : b;
 //}
 
+static void *_t2s_memory_region_alloc(struct T2S_MemoryRegion *region, size_t size)
+{
+	if(region->top + size > region->capacity) {
+		return NULL;
+	}
+
+	void *out_pointer = (char *)region->memory + region->top;
+	region->top += size;
+
+	return out_pointer;
+}
+
 struct T2S_Options t2s_get_default_options(void)
 {
 	return (struct T2S_Options){
@@ -91,31 +120,70 @@ struct T2S_Options t2s_get_default_options(void)
 
 struct T2S_Image t2s_convert(struct T2S_Image input, struct T2S_Options options)
 {
-	// 1. Allocate memory for output
-	struct T2S_Image output = input;
-	output.data = malloc(output.width * output.height * output.channels);
+	// 1. Find out how much memory to allocate
+	struct T2S_Allocation allocation = {0};
+	t2s_convert_noalloc(input, options, &allocation);
 
-	if(!output.data) {
-		output = (struct T2S_Image){0};
-		output.error = TEX2SDF_ERR_ALLOC;
+	// 2. Allocate
+	allocation.temporary_memory.memory = calloc(allocation.temporary_memory.capacity, 1);
+	allocation.return_data_memory.memory = calloc(allocation.return_data_memory.capacity, 1);
 
-		return output;
+	if(!allocation.temporary_memory.memory || !allocation.return_data_memory.memory) {
+		return (struct T2S_Image) { .error = TEX2SDF_ERR_ALLOC_FAILURE };
 	}
 
-	// 2. Allocate scratch memory
+	// 3. Execute
+	struct T2S_Image image = t2s_convert_noalloc(input, options, &allocation);
+
+	// 4. Free the temporary memory
+	free(allocation.temporary_memory.memory);
+
+	// 5. Done
+	return image;
+}
+
+struct T2S_Image t2s_convert_noalloc(struct T2S_Image input, struct T2S_Options options, struct T2S_Allocation *alloc)
+{
+	// 1. Determine amount of memory needed
+
+	// Memory needed to return the data produced here
+	const size_t return_data_memory_size = input.width * input.height * input.channels;
+
+	// Memory needed temporarily while computing
+	const size_t distance_buffer_size = input.width * input.height * sizeof(float);
+	const size_t edge_buffer_size = input.width * input.height * sizeof(unsigned char);
+
+	const size_t temporary_memory_size = distance_buffer_size + edge_buffer_size;
+
+	// Check if we have enough memory, according to calculation above.
+	if(alloc->return_data_memory.capacity != return_data_memory_size ||
+	   alloc->temporary_memory.capacity != temporary_memory_size ||
+	   !alloc->temporary_memory.memory ||
+	   !alloc->return_data_memory.memory)
+	{
+		// NOTE: We expect this function to be called with no memory first, so this should not be a fatal error.
+		//		 Just fill out the memory we expect and return.
+		alloc->return_data_memory.capacity = return_data_memory_size;
+		alloc->return_data_memory.top = 0;
+		
+		alloc->temporary_memory.capacity = temporary_memory_size;
+		alloc->temporary_memory.top = 0;
+
+		return (struct T2S_Image) {
+			.error = TEX2SDF_ERR_PREALLOCATED_MEMORY_INCORRECT
+		};
+	}
+
+	// 2. Suballocate the buffers
+	struct T2S_Image output = input;
+	output.data = alloc->return_data_memory.memory;
+
 	struct T2S_ImageChannel scratch_channel = {
 		.width = output.width,
 		.height = output.height,
-		.distance_buffer = calloc(output.width * output.height, sizeof(float)),
-		.edge_buffer = calloc(output.width * output.height, sizeof(float))
+		.distance_buffer = _t2s_memory_region_alloc(&alloc->temporary_memory, distance_buffer_size),
+		.edge_buffer = _t2s_memory_region_alloc(&alloc->temporary_memory, edge_buffer_size)
 	};
-
-	if(!scratch_channel.distance_buffer || !scratch_channel.edge_buffer) {
-		output = (struct T2S_Image){0};
-		output.error = TEX2SDF_ERR_ALLOC;
-
-		return output;
-	}
 
 	// 3. Run SDF conversion (Eikonal sweep)
 	for(int channel = 0; channel < input.channels; ++channel)
@@ -140,10 +208,7 @@ struct T2S_Image t2s_convert(struct T2S_Image input, struct T2S_Options options)
 		}
 	}
 
-	// 4. Cleanup
-	free(scratch_channel.distance_buffer);
-	free(scratch_channel.edge_buffer);
-
+	// 4. Done
 	return output;
 }
 
@@ -151,7 +216,7 @@ const char *t2s_get_error_string(int error)
 {
 	static const char *error_table[TEX2SDF_ERR_COUNT] = {
 		[TEX2SDF_ERR_NONE] = "Success",
-		[TEX2SDF_ERR_ALLOC] = "Failed to allocate memory"
+		[TEX2SDF_ERR_ALLOC_FAILURE] = "Failed to allocate memory"
 	};
 
 	if(error < 0 || error >= TEX2SDF_ERR_COUNT) {
