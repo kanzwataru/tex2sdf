@@ -7,16 +7,33 @@
 
 #include <stddef.h> // For size_t
 
+/* Describes a texture
+ * INPUT:  Fill this out with the texture input, to be passed to t2s_convert()
+ * OUTPUT: You get out the result of the conversion.
+ */
 struct T2S_Image
 {
-	unsigned char *data;
+	unsigned char *data; // Non-owning for INPUT and if calling t2s_convert_noalloc(). For OUTPUT with t2s_convert(), must call free().
 	int width;
 	int height;
-	int channels;
+	int channels; // Number of channels in the texture. 4 for RGBA, 3 for RGB, 2 for RG, 1 for grayscale.
 
-	int error;
+	int error; // The error enum is stored here. If 0, there is no error. Call t2s_get_error_string() to get the error message.
 };
 
+/* Supply the options here.
+ * For defaults, call t2s_get_default_options().
+ */
+struct T2S_Options
+{
+	float sdf_range; // How much to scale the SDF values. A larger value "spreads" the shape out further.
+};
+
+/* A memory region.
+ * If you use the _noalloc API, you will need to allocate the "memory" field with the size in the "capacity" field.
+ *
+ * This struct is used in the T2S_Allocation below.
+ */
 struct T2S_MemoryRegion
 {
 	void *memory;
@@ -24,17 +41,16 @@ struct T2S_MemoryRegion
 	size_t capacity;
 };
 
+/* The memory regions that are needed for the function to run.
+ * If you use the _noalloc API, you will need to allocate memory for each of these.
+ */
 struct T2S_Allocation
 {
 	struct T2S_MemoryRegion temporary_memory;
 	struct T2S_MemoryRegion return_data_memory;
 };
 
-struct T2S_Options
-{
-	float sdf_range;
-};
-
+/* Error enum values. The first (0) is success. */
 enum
 {
 	TEX2SDF_ERR_NONE,
@@ -44,18 +60,67 @@ enum
 	TEX2SDF_ERR_COUNT
 };
 
+/* Get default working options. */
 struct T2S_Options t2s_get_default_options(void);
+
+/* Convert mask texture to SDF. This is the main function.
+ * Fill in the structs that are passed to this function.
+ *
+ * MEMORY
+ * This allocates with malloc!
+ * The returned struct has an owning pointer ("data").
+ * You will need to use free() on it.
+ * Consider t2s_convert_noalloc() if you want to allocate manually.
+ */
 struct T2S_Image t2s_convert(struct T2S_Image input, struct T2S_Options options);
+
+/* A version of the main conversion function that does not allocate.
+ *
+ * Call this once with "alloc" pointing to a zeroed-out T2S_Allocation.
+ * The allocation struct will contain the memory sizes needed.
+ * Provide pointers to the allocation, and call it again.
+ *
+ * Example code:
+ * {
+ *		...
+ * 		struct T2S_Allocation alloc = {0};
+ * 		t2s_convert_noalloc(input, options, &alloc);
+ * 		alloc.temporary_memory.memory = calloc(alloc.temporary_memory.capacity, 1);
+ * 		alloc.return_data_memory.memory = calloc(alloc.return_data_memory.capacity, 1);
+ *
+ * 		struct T2S_Image image = t2s_convert_noalloc(input, options, &alloc);
+ * 		...
+ * }
+ */
 struct T2S_Image t2s_convert_noalloc(struct T2S_Image input, struct T2S_Options options, struct T2S_Allocation *alloc);
+
+/* Call this with a valid error enum to get an error message in string format. */
 const char *t2s_get_error_string(int error);
 
 #endif // TEX2SDF_H
 
-/*
- * Implementation Starts Here...
+/* IMPLEMENTATION BEGINS HERE
+ *
+ *
+ *
  * 
  *
- */
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+*/
 #ifdef TEX2SDF_IMPLEMENTATION
 
 #include <math.h>  // for sqrtf, fabsf
@@ -216,7 +281,8 @@ const char *t2s_get_error_string(int error)
 {
 	static const char *error_table[TEX2SDF_ERR_COUNT] = {
 		[TEX2SDF_ERR_NONE] = "Success",
-		[TEX2SDF_ERR_ALLOC_FAILURE] = "Failed to allocate memory"
+		[TEX2SDF_ERR_ALLOC_FAILURE] = "Failed to allocate memory",
+		[TEX2SDF_ERR_PREALLOCATED_MEMORY_INCORRECT] = "The memory passed in is not the size needed, or is not allocated. (This is a harmless error if you're calling the function the first time to find out the required memory size)"
 	};
 
 	if(error < 0 || error >= TEX2SDF_ERR_COUNT) {
