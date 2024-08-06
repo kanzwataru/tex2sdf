@@ -47,6 +47,30 @@ The reason behind making it an [stb-style](https://github.com/nothings/stb) "sin
 Since this is mostly just a port, a lot of the code remains mostly the same, besides naming conventions.
 There are likely performance or structural improvements that can be made, but it is satisfactory at the moment for my purposes.
 
+### Supported Platforms
+
+The console frontend supports the following:
+* Windows
+* Linux
+
+The `tex2sdf.h` header is fully-portable C99.
+It should run on any 64-bit platform. 32-bit has not been tested.
+
+### How to compile?
+
+#### Header
+
+If you're just using the `tex2sdf.h` header, you just need to drop it in your project.
+In one of your .c files, define `TEX2SDF_IMPLEMENTATION` before the include.
+For more information, read the comments at the beginning of the file.
+
+#### Frontends
+
+If you want to compile the GUI (WIP) or console frontends, run the `build.bat` (for Windows) or `build.sh` (for Linux).
+The binaries will be under the `build/` folder.
+
+For Windows, you will need to run `bulid.bat` from a Visual Studio console.
+
 ### What is the algorithm behind the converter?
 
 This uses an Eikonal sweep algorithm, for the smoothest result.
