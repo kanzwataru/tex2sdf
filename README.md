@@ -1,5 +1,7 @@
 # Convert mask textures to SDF textures
 
+![Cat SDF](test_assets/cathires_sdf.tga)
+
 Welcome! `tex2sdf` is a tool to make SDF textures out of solid shape textures.
 The license is MIT, so feel free to use it!
 
@@ -22,6 +24,9 @@ Check out his [article series about SDFs](https://shaderfun.com/2018/03/23/signe
 
 ## Examples
 
+![Cat Mask](test_assets/cathires.jpg)
+![Cat SDF](test_assets/cathires_sdf.tga)
+
 ## FAQ
 
 ### What is the license?
@@ -35,6 +40,14 @@ I was given permission to license this under MIT by an explicit comment, in [thi
 I claim no responsibility in the event the original author retracts his statement.
 
 ### What is SDF?
+
+An SDF (Signed-Distance-Field) is a field with a signed distance.
+That is a circular description isn't it!
+Essentially it is a field where each point describes how far away from an implicit shape it is situated.
+The distance can be either positive or negative.
+
+See Inigo Quilez's page on [2D SDF Functions](https://iquilezles.org/articles/distfunctions2d/) for more info.
+For how this relates to textures, consider [Chirs Cummings' excellent article series](https://shaderfun.com/2018/07/23/signed-distance-fields-part-8-gradients-bevels-and-noise/).
 
 ### Why C? Why header-only?
 
