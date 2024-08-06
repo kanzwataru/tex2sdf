@@ -105,8 +105,8 @@ int main(int argc, char **argv)
 		.argv = (const char **)argv
 	};
 
-	const char *input_path = pop_one_argument(&parser);;
-	const char *output_path = pop_one_argument(&parser);;
+	const char *input_path = pop_one_argument(&parser);
+	const char *output_path = pop_one_argument(&parser);
 
 	while(parser.top < parser.argc) {
 		const char *flag = pop_flag(&parser);
