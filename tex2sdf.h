@@ -220,13 +220,13 @@ void _t2s_load_from_texture_antialiased(const struct T2S_ImageChannel *channel, 
 void _t2s_eikonal_sweep(const struct T2S_ImageChannel *channel);
 
 // TODO: Rename this to have a prefix
-static int at(const struct T2S_Image *image, int x, int y, int channel)
+static int t2s_at(const struct T2S_Image *image, int x, int y, int channel)
 {
 	return (y * image->width + x) * image->channels + channel;
 }
 
 // TODO: Rename this to have a prefix
-static int channel_at(const struct T2S_ImageChannel *channel, int x, int y)
+static int t2s_channel_at(const struct T2S_ImageChannel *channel, int x, int y)
 {
 	return y * channel->width + x;
 }
@@ -351,7 +351,7 @@ struct T2S_Image t2s_convert_noalloc(struct T2S_Image input, struct T2S_Options 
 				value = value >  1.0f ?  1.0f : value;
 
 				const unsigned char value_unorm = (unsigned char)((value * 0.5 + 0.5) * 255);
-				output.data[at(&output, x, y, channel)] = value_unorm;
+				output.data[t2s_at(&output, x, y, channel)] = value_unorm;
 			}
 		}
 	}
@@ -454,7 +454,7 @@ void _t2s_load_from_texture_antialiased(const struct T2S_ImageChannel *channel, 
 		for(int x = 0; x < input->width; ++x) {
 	        //r==1 means solid pixel, and r==0 means empty pixel and r==0.5 means half way between the 2
 	        //interpolate between 'a bit outside' and 'a bit inside' to get approximate distance
-			const float pixel_value = (float)input->data[at(input, x, y, input_channel)] / 255.0f;
+			const float pixel_value = (float)input->data[t2s_at(input, x, y, input_channel)] / 255.0f;
 			channel->distance_buffer[y * input->width + x] = t2s_lerp(0.75f, -0.75f, pixel_value);
 		}		
 	}
@@ -478,11 +478,11 @@ float _t2s_solve_eikonal_equation(float horizontal, float vertical)
 
 void _t2s_solve_eikonal(const struct T2S_ImageChannel *channel, int x, int y)
 {
-	if(channel->edge_buffer[channel_at(channel, x, y)]) {
+	if(channel->edge_buffer[t2s_channel_at(channel, x, y)]) {
 		return;
 	}
 
-	float distance = channel->distance_buffer[channel_at(channel, x, y)];
+	float distance = channel->distance_buffer[t2s_channel_at(channel, x, y)];
 
     //read current and sign, then correct sign to work with +ve distance
     float current = distance;
@@ -491,13 +491,13 @@ void _t2s_solve_eikonal(const struct T2S_ImageChannel *channel, int x, int y)
 
     //find the smallest of the 2 horizontal neighbours (correcting for sign)
     float horizontalmin = FLT_MAX;
-    if (x > 0) horizontalmin = t2s_min(horizontalmin, sign * channel->distance_buffer[channel_at(channel, x - 1, y)]);
-    if (x < channel->width - 1) horizontalmin = t2s_min(horizontalmin, sign * channel->distance_buffer[channel_at(channel, x + 1, y)]);
+    if (x > 0) horizontalmin = t2s_min(horizontalmin, sign * channel->distance_buffer[t2s_channel_at(channel, x - 1, y)]);
+    if (x < channel->width - 1) horizontalmin = t2s_min(horizontalmin, sign * channel->distance_buffer[t2s_channel_at(channel, x + 1, y)]);
 
     //find the smallest of the 2 vertical neighbours
     float verticalmin = FLT_MAX;
-    if (y > 0) verticalmin = t2s_min(verticalmin, sign * channel->distance_buffer[channel_at(channel, x, y - 1)]);
-    if (y < channel->height - 1) verticalmin = t2s_min(verticalmin, sign * channel->distance_buffer[channel_at(channel, x, y + 1)]);
+    if (y > 0) verticalmin = t2s_min(verticalmin, sign * channel->distance_buffer[t2s_channel_at(channel, x, y - 1)]);
+    if (y < channel->height - 1) verticalmin = t2s_min(verticalmin, sign * channel->distance_buffer[t2s_channel_at(channel, x, y + 1)]);
 
 	//solve eikonal equation in 2D
     float eikonal = _t2s_solve_eikonal_equation(horizontalmin, verticalmin);
@@ -506,7 +506,7 @@ void _t2s_solve_eikonal(const struct T2S_ImageChannel *channel, int x, int y)
     distance = sign * t2s_min(current, eikonal);
 
     //write
-    channel->distance_buffer[channel_at(channel, x, y)] = distance;
+    channel->distance_buffer[t2s_channel_at(channel, x, y)] = distance;
 }
 
 void _t2s_eikonal_sweep(const struct T2S_ImageChannel *channel)
