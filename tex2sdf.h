@@ -1,6 +1,88 @@
- /*
- 	TODO: Add description
- */
+/*
+This is tex2sdf, a single-header C library for taking a black-and-white mask texture and creating an SDF out of it.
+Please take a look at https://github.com/kanzwataru/tex2sdf for more info. (and/or the README.md)
+
+#####################
+#### QUICK START ####
+#####################
+
+Here is sample code for the simplest possible usage of this library.
+
+	```
+	#define TEX2SDF_IMPLEMENTATION
+	#include "tex2sdf.h"
+
+	{
+		...
+		struct T2S_Image input  = { .data = my_texture_data_u8, .width = 512, height = 512, channels = 1 };
+		struct T2S_Image output = t2s_convert(input, t2s_get_default_options());
+		...
+	}
+	```
+
+This is an stb-style header-only library. Here is how to add the library to your codebase.
+1. In one .c file, do #define TEX2SDF_IMPLEMENTATION followed by including the header
+2. In wherever the library is used, include the header
+
+Specific to this library, here is how to use it:
+1. We need to fill out a T2S_Image with our input texture.
+   Make sure that the pixel format is 8-bit UNORM.
+   Color textures also work, they will have SDFs converted per-channel.
+
+2. Fill out the T2S_Options struct.
+   Use t2s_get_default_options() to first get working defaults, if you don't intend on changing all the options.
+
+3. Run the t2s_convert() function with all the data passed into it.
+   The texture returned will be in 8-bit UNORM format, with the same number of channels as the input.
+
+4. When you are done with the output texture, call free() on the "data" field.
+
+#########################
+#### CHARACTERISTICS ####
+#########################
+
+The code has the following characteristics
+* Can be compiled as C99 (C++ coming soon)
+* Does not have any asserts or aborts or panics in non-debug mode
+* Portable for all 64-bit platforms, does not have platform-specific or compiler-specific code
+* Minimal standard library usage
+* Malloc can be avoided (by using the _noalloc version of the function)
+
+#######################
+#### API STRUCTURE ####
+#######################
+
+This library is designed to be as simple and easy-to-use as possible, while still allowing more advanced features if needed.
+Override the default options to change the behaviour of the conversion.
+
+For now the library only has the one main function "t2s_convert()".
+There is also a _noalloc version, but it is essentially the same function.
+Backwards compatibility here is guaranteed, all behaviour changes would be done as extra options in T2S_Options.
+
+##################################
+#### CUSTOM MEMORY ALLOCATION ####
+##################################
+
+If you need to avoid memory allocations, use the _noalloc version (t2s_convert_noalloc).
+You will need to pass in a T2S_Allocation with the necessary memory buffers filled in.
+
+Since the amount of memory needed depends on the input settings, we cannot statically determine the sizes.
+To know how much to allocate, first call the function with a zeroed-out allocation struct.
+
+See the function comments for sample code.
+
+#################
+#### LICENSE ####
+#################
+
+This code is licensed under the MIT license.
+Original C# Unity code written by Chris Cummings. (github.com/chriscummings100/signeddistancefields)
+C port by Denis Patrut.
+
+Please take a look at LICENSE.md and README.md
+The original code was granted by MIT license in a comment in the author's blog article. The repo does not have a LICENSE.md.
+All parts taken from the original repo are marked as such.
+*/
 
 #ifndef TEX2SDF_H
 #define TEX2SDF_H
@@ -16,9 +98,10 @@ struct T2S_Image
 	unsigned char *data; // Non-owning for INPUT and if calling t2s_convert_noalloc(). For OUTPUT with t2s_convert(), must call free().
 	int width;
 	int height;
-	int channels; // Number of channels in the texture. 4 for RGBA, 3 for RGB, 2 for RG, 1 for grayscale.
+	int channels; 		 // Number of channels in the texture. 4 for RGBA, 3 for RGB, 2 for RG, 1 for grayscale.
 
-	int error; // The error enum is stored here. If 0, there is no error. Call t2s_get_error_string() to get the error message.
+	int error; 		     // The error enum is stored here. If 0, there is no error. Call t2s_get_error_string() to get the error message. Do not set this yourself.
+	int data_is_owned;   // Whether data is owned by this struct. Do not set this yourself.
 };
 
 /* Supply the options here.
@@ -46,8 +129,8 @@ struct T2S_MemoryRegion
  */
 struct T2S_Allocation
 {
-	struct T2S_MemoryRegion temporary_memory;
-	struct T2S_MemoryRegion return_data_memory;
+	struct T2S_MemoryRegion temporary_memory;    // Memory only needed during execution of the function. Free after calling.
+	struct T2S_MemoryRegion return_data_memory;  // Memory that stores the data returned. Free whenever you're finished with the data.
 };
 
 /* Error enum values. The first (0) is success. */
@@ -56,6 +139,7 @@ enum
 	TEX2SDF_ERR_NONE,
 	TEX2SDF_ERR_ALLOC_FAILURE,
 	TEX2SDF_ERR_PREALLOCATED_MEMORY_INCORRECT,
+	TEX2SDF_ERR_TRIED_TO_FREE_NON_OWNING_IMAGE,
 
 	TEX2SDF_ERR_COUNT
 };
@@ -94,28 +178,26 @@ struct T2S_Image t2s_convert(struct T2S_Image input, struct T2S_Options options)
  */
 struct T2S_Image t2s_convert_noalloc(struct T2S_Image input, struct T2S_Options options, struct T2S_Allocation *alloc);
 
+/* Free the image returned.
+ * This is necessary for images returned by t2s_convert.
+ * This is meaningless for t2s_convert_noalloc, since you handle memory yourself inside of T2S_Allocation.
+ */
+int t2s_free_image(struct T2S_Image *image);
+
 /* Call this with a valid error enum to get an error message in string format. */
 const char *t2s_get_error_string(int error);
 
 #endif // TEX2SDF_H
 
-/* IMPLEMENTATION BEGINS HERE
+/*
  *
+ *
+ *    #####################################
+ *   ##### IMPLEMENTATION BEGINS HERE ####
+ *  #####################################
  *
  *
  * 
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
  *
  *
  *
@@ -199,6 +281,7 @@ struct T2S_Image t2s_convert(struct T2S_Image input, struct T2S_Options options)
 
 	// 3. Execute
 	struct T2S_Image image = t2s_convert_noalloc(input, options, &allocation);
+	image.data_is_owned = 1; // Mark as owned, so it can be freed with t2s_free_image()
 
 	// 4. Free the temporary memory
 	free(allocation.temporary_memory.memory);
@@ -277,12 +360,25 @@ struct T2S_Image t2s_convert_noalloc(struct T2S_Image input, struct T2S_Options 
 	return output;
 }
 
+int t2s_free_image(struct T2S_Image *image)
+{
+	if(!image->data_is_owned) {
+		return TEX2SDF_ERR_TRIED_TO_FREE_NON_OWNING_IMAGE;
+	}
+
+	free(image->data);
+	image->data = NULL;
+
+	return TEX2SDF_ERR_NONE;
+}
+
 const char *t2s_get_error_string(int error)
 {
 	static const char *error_table[TEX2SDF_ERR_COUNT] = {
 		[TEX2SDF_ERR_NONE] = "Success",
 		[TEX2SDF_ERR_ALLOC_FAILURE] = "Failed to allocate memory",
-		[TEX2SDF_ERR_PREALLOCATED_MEMORY_INCORRECT] = "The memory passed in is not the size needed, or is not allocated. (This is a harmless error if you're calling the function the first time to find out the required memory size)"
+		[TEX2SDF_ERR_PREALLOCATED_MEMORY_INCORRECT] = "The memory passed in is not the size needed, or is not allocated. (This is a harmless error if you're calling the function the first time to find out the required memory size)",
+		[TEX2SDF_ERR_TRIED_TO_FREE_NON_OWNING_IMAGE] = "An image was passed to t2s_free_image() that did not own its data pointer. This can happen if trying to free the input image, or if trying to free an image from t2s_convert_noalloc(). For the latter, please free your allocation block inside of T2S_Allocation."
 	};
 
 	if(error < 0 || error >= TEX2SDF_ERR_COUNT) {
