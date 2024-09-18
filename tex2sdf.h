@@ -89,6 +89,10 @@ All parts taken from the original repo are marked as such.
 
 #include <stddef.h> // For size_t
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Describes a texture
  * INPUT:  Fill this out with the texture input, to be passed to t2s_convert()
  * OUTPUT: You get out the result of the conversion.
@@ -187,6 +191,10 @@ int t2s_free_image(struct T2S_Image *image);
 /* Call this with a valid error enum to get an error message in string format. */
 const char *t2s_get_error_string(int error);
 
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
 #endif // TEX2SDF_H
 
 /*
@@ -207,6 +215,10 @@ const char *t2s_get_error_string(int error);
 
 #include <math.h>  // for sqrtf, fabsf
 #include <float.h> // for FLT_MAX
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct T2S_ImageChannel
 {
@@ -258,11 +270,19 @@ static void *_t2s_memory_region_alloc(struct T2S_MemoryRegion *region, size_t si
 	return out_pointer;
 }
 
+static struct T2S_Image make_error_image(int error_code)
+{
+	struct T2S_Image out = {0};
+	out.error = error_code;
+	return out;
+}
+
 struct T2S_Options t2s_get_default_options(void)
 {
-	return (struct T2S_Options){
-		.sdf_range = 32.0f
-	};
+	struct T2S_Options options = {0};
+	options.sdf_range = 32.0f;
+
+	return options;
 }
 
 struct T2S_Image t2s_convert(struct T2S_Image input, struct T2S_Options options)
@@ -276,7 +296,7 @@ struct T2S_Image t2s_convert(struct T2S_Image input, struct T2S_Options options)
 	allocation.return_data_memory.memory = calloc(allocation.return_data_memory.capacity, 1);
 
 	if(!allocation.temporary_memory.memory || !allocation.return_data_memory.memory) {
-		return (struct T2S_Image) { .error = TEX2SDF_ERR_ALLOC_FAILURE };
+		return make_error_image(TEX2SDF_ERR_ALLOC_FAILURE);
 	}
 
 	// 3. Execute
@@ -317,21 +337,18 @@ struct T2S_Image t2s_convert_noalloc(struct T2S_Image input, struct T2S_Options 
 		alloc->temporary_memory.capacity = temporary_memory_size;
 		alloc->temporary_memory.top = 0;
 
-		return (struct T2S_Image) {
-			.error = TEX2SDF_ERR_PREALLOCATED_MEMORY_INCORRECT
-		};
+		return make_error_image(TEX2SDF_ERR_PREALLOCATED_MEMORY_INCORRECT);
 	}
 
 	// 2. Suballocate the buffers
 	struct T2S_Image output = input;
-	output.data = alloc->return_data_memory.memory;
+	output.data = (unsigned char *)alloc->return_data_memory.memory;
 
-	struct T2S_ImageChannel scratch_channel = {
-		.width = output.width,
-		.height = output.height,
-		.distance_buffer = _t2s_memory_region_alloc(&alloc->temporary_memory, distance_buffer_size),
-		.edge_buffer = _t2s_memory_region_alloc(&alloc->temporary_memory, edge_buffer_size)
-	};
+	struct T2S_ImageChannel scratch_channel = {0};
+	scratch_channel.width = output.width;
+	scratch_channel.height = output.height;
+	scratch_channel.distance_buffer = (float *)_t2s_memory_region_alloc(&alloc->temporary_memory, distance_buffer_size);
+	scratch_channel.edge_buffer = (unsigned char *)_t2s_memory_region_alloc(&alloc->temporary_memory, edge_buffer_size);
 
 	// 3. Run SDF conversion (Eikonal sweep)
 	for(int channel = 0; channel < input.channels; ++channel)
@@ -374,18 +391,18 @@ int t2s_free_image(struct T2S_Image *image)
 
 const char *t2s_get_error_string(int error)
 {
-	static const char *error_table[TEX2SDF_ERR_COUNT] = {
-		[TEX2SDF_ERR_NONE] = "Success",
-		[TEX2SDF_ERR_ALLOC_FAILURE] = "Failed to allocate memory",
-		[TEX2SDF_ERR_PREALLOCATED_MEMORY_INCORRECT] = "The memory passed in is not the size needed, or is not allocated. (This is a harmless error if you're calling the function the first time to find out the required memory size)",
-		[TEX2SDF_ERR_TRIED_TO_FREE_NON_OWNING_IMAGE] = "An image was passed to t2s_free_image() that did not own its data pointer. This can happen if trying to free the input image, or if trying to free an image from t2s_convert_noalloc(). For the latter, please free your allocation block inside of T2S_Allocation."
-	};
-
-	if(error < 0 || error >= TEX2SDF_ERR_COUNT) {
+	switch(error) {
+	case TEX2SDF_ERR_NONE:
+		return "Success";
+	case TEX2SDF_ERR_ALLOC_FAILURE:
+		return "Failed to allocate memory";
+	case TEX2SDF_ERR_PREALLOCATED_MEMORY_INCORRECT:
+		return "The memory passed in is not the size needed, or is not allocated. (This is a harmless error if you're calling the function the first time to find out the required memory size)";
+	case TEX2SDF_ERR_TRIED_TO_FREE_NON_OWNING_IMAGE:
+		return "An image was passed to t2s_free_image() that did not own its data pointer. This can happen if trying to free the input image, or if trying to free an image from t2s_convert_noalloc(). For the latter, please free your allocation block inside of T2S_Allocation.";	
+	default:
 		return "Invalid error code!";
 	}
-
-	return error_table[error];
 }
 
 /*
@@ -537,5 +554,9 @@ void _t2s_eikonal_sweep(const struct T2S_ImageChannel *channel)
 /*
  * [End port of chriscummings100/signeddistancefields code]
  */
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif // TEX2SDF_IMPLEMENTATION
