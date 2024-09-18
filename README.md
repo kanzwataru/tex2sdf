@@ -1,6 +1,6 @@
 # Convert mask textures to SDF textures | マスクテクスチャのSDF化
 
-※日本語は (下の方に)[#japanese] あります
+※日本語は [下の方に](#japanese) あります
 
 ![Cat SDF](testing/assets/cathires_sdf.png)
 
@@ -34,7 +34,7 @@ Check out his [article series about SDFs](https://shaderfun.com/2018/03/23/signe
 ### What is the license?
 
 This is MIT-licensed, since it is a port of C# code written by someone else.
-The original repository is at [chriscummings100/signeddistancefields](github.com/chriscummings100/signeddistancefields).
+The original repository is at [chriscummings100/signeddistancefields](https://www.github.com/chriscummings100/signeddistancefields).
 
 Please note that the original repository does not have a license.
 I was given permission to license this under MIT by an explicit comment, in [this blog article's comments section](https://shaderfun.com/2018/07/23/signed-distance-fields-part-8-gradients-bevels-and-noise/).
@@ -127,7 +127,7 @@ To learn more about it, check out [the original article on ShaderFun](https://sh
 ### ライセンスは?
 
 ライセンスはMITで、もともと他人が書いたC#コードの移植です。
-元のリポジトリはこちら：[chriscummings100/signeddistancefields](github.com/chriscummings100/signeddistancefields).
+元のリポジトリはこちら：[chriscummings100/signeddistancefields](https://www.github.com/chriscummings100/signeddistancefields).
 
 ※元のリポジトリには厳密に言うとライセンスファイルは存在しません
 しかし[こちらの記事のコメント欄](https://shaderfun.com/2018/07/23/signed-distance-fields-part-8-gradients-bevels-and-noise/)で直接MITで使っていいんですよと本人から伺いました。
