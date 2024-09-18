@@ -1,6 +1,6 @@
 # Convert mask textures to SDF textures | マスクテクスチャのSDF化
 
-※日本語は [下の方に](#japanese) あります
+※日本語は [下の方に](#日本語) あります
 
 ![Cat SDF](testing/assets/cathires_sdf.png)
 
@@ -93,7 +93,7 @@ To learn more about it, check out [the original article on ShaderFun](https://sh
 
 (This project is mostly a port of C# code from the article, I have yet to dig deep at how the alogrithm works)
 
-# Japanese
+# 日本語
 
 ![Cat SDF](testing/assets/cathires_sdf.png)
 
